@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { scan } from './configLineScanner';
+import { recordHit } from './reviewPrompt';
 
 let diagnostics: vscode.DiagnosticCollection;
 
@@ -11,7 +12,7 @@ function basename(uri: vscode.Uri): string {
   return path.slice(path.lastIndexOf('/') + 1);
 }
 
-function refresh(document: vscode.TextDocument): void {
+function refresh(context: vscode.ExtensionContext, document: vscode.TextDocument): void {
   const name = basename(document.uri);
   if (!CONFIG_FILE_NAME.test(name)) {
     diagnostics.delete(document.uri);
@@ -35,6 +36,7 @@ function refresh(document: vscode.TextDocument): void {
     );
     diagnostic.source = 'Config Secrets File Companion';
     diagnostic.code = match.finding.kind;
+    recordHit(context, `${document.uri.toString()}:${line}`);
     return diagnostic;
   });
   diagnostics.set(document.uri, result);
@@ -44,11 +46,11 @@ export function activate(context: vscode.ExtensionContext): void {
   diagnostics = vscode.languages.createDiagnosticCollection('configSecretsFileCompanion');
   context.subscriptions.push(diagnostics);
 
-  vscode.workspace.textDocuments.forEach(refresh);
+  vscode.workspace.textDocuments.forEach((document) => refresh(context, document));
 
   context.subscriptions.push(
-    vscode.workspace.onDidOpenTextDocument(refresh),
-    vscode.workspace.onDidChangeTextDocument((event) => refresh(event.document)),
+    vscode.workspace.onDidOpenTextDocument((document) => refresh(context, document)),
+    vscode.workspace.onDidChangeTextDocument((event) => refresh(context, event.document)),
     vscode.workspace.onDidCloseTextDocument((document) => diagnostics.delete(document.uri)),
   );
 }
